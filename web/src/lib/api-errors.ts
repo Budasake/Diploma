@@ -5,6 +5,10 @@ const messages: Record<string, string> = {
   inactive_user: "Таны бүртгэл идэвхгүй байна. Админтай холбогдоно уу.",
   not_authenticated: "Та эхлээд нэвтэрнэ үү.",
   forbidden: "Танд энэ үйлдлийг хийх эрх байхгүй.",
+  invalid_join_code: "Ийм кодтой хичээл олдсонгүй. Кодоо шалгана уу.",
+  already_enrolled: "Та энэ хичээлд аль хэдийн нэгдсэн байна.",
+  course_not_found: "Хичээл олдсонгүй.",
+  student_not_in_course: "Энэ оюутан хичээлд бүртгэлгүй байна.",
 };
 
 export const NETWORK_ERROR = "Сервертэй холбогдож чадсангүй. Түр хүлээгээд дахин оролдоно уу.";
