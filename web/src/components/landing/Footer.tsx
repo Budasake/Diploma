@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import SystemStatus from "@/components/SystemStatus";
 
 export default function Footer() {
   return (
@@ -10,7 +11,8 @@ export default function Footer() {
           </span>
           AI Сургалтын Туслах
         </div>
-        <p className="text-center">ШУТИС · Мэдээлэл, Холбооны Технологийн Сургууль · Дипломын ажил 2026</p>
+        <SystemStatus />
+        <p className="text-center">ШУТИС · МХТС · Дипломын ажил 2026</p>
       </div>
     </footer>
   );
