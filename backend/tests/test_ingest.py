@@ -3,7 +3,15 @@
 import pytest
 
 from app.ingest.chunking import CHUNK_SIZE, MIN_CHUNK_CHARS, chunk_pages, split_text
-from app.ingest.parse import Page, clean_text, parse_docx, parse_pdf
+from app.ingest.parse import (
+    Page,
+    clean_text,
+    decode_legacy_mongolian,
+    looks_like_legacy_mongolian,
+    parse_docx,
+    parse_file,
+    parse_pdf,
+)
 from tests.sample_files import make_docx, make_pdf
 
 # ---------- parsing ----------
@@ -36,6 +44,39 @@ def test_docx_paragraphs_and_tables_are_read(tmp_path):
 
 def test_clean_text_squeezes_spaces_and_empty_lines():
     assert clean_text("a  \t b\n\n\n\nc\x00") == "a b\n\nc"
+
+
+# ---------- old Mongolian fonts ("Çîðèëãî" → "Зорилго") ----------
+
+# Real text from lab1.pdf of F.CSM101, as pypdf reads it.
+GARBLED = (
+    "Çîðèëãî: Èíòåðïðåòàòîðûí ³íäñèéã îéëãîõ. Õ°ãæ³³ëýõ õî¼ð \x88 \x90ã°ãäñ°í ÕÀÌÆÈËÒ Õ\x93ÑÜÅ"
+)
+
+
+def test_garbled_text_is_detected_and_decoded():
+    assert looks_like_legacy_mongolian(GARBLED)
+    assert decode_legacy_mongolian(GARBLED) == (
+        "Зорилго: Интерпретаторын үндсийг ойлгох. Хөгжүүлэх хоёр • Өгөгдсөн ХАМЖИЛТ ХҮСЬЕ"
+    )
+
+
+def test_normal_text_is_not_treated_as_garbled():
+    assert not looks_like_legacy_mongolian("Өгөгдлийн сан нь мэдээллийн цуглуулга юм. " * 5)
+    assert not looks_like_legacy_mongolian("A database is an organized collection of data. " * 5)
+    # French has accents, but far fewer than garbled Mongolian.
+    assert not looks_like_legacy_mongolian("Le café était très agréable à côté de l'école. " * 5)
+
+
+def test_garbled_pdf_is_fixed_on_every_page(tmp_path, monkeypatch):
+    # A whole garbled document, plus a short page that alone would be too small to detect.
+    pages = [Page(1, GARBLED), Page(2, "ÒÀÍÄ ÀÌÆÈËÒ")]
+    monkeypatch.setattr("app.ingest.parse.parse_pdf", lambda path: pages)
+
+    fixed = parse_file(tmp_path / "lab.pdf", "pdf")
+
+    assert fixed[0].text.startswith("Зорилго:")
+    assert fixed[1].text == "ТАНД АМЖИЛТ"
 
 
 # ---------- chunking ----------

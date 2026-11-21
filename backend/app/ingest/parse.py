@@ -20,10 +20,57 @@ class Page:
     text: str
 
 
+# ---------- old Mongolian fonts ----------
+#
+# Many older Mongolian documents were typed with fonts such as "Arial Mon" that draw
+# Cyrillic letters but store them under Latin-1 codes. A PDF made from such a file
+# gives text like "Çîðèëãî" instead of "Зорилго". The codes follow the Windows
+# Cyrillic code page (cp1251), except a few Mongolian letters stored in odd places.
+_LEGACY_EXTRA = {
+    "³": "ү",  # ³
+    "\u0093": "Ү",
+    "°": "ө",  # °
+    "\u0090": "Ө",
+    "¼": "ё",  # ¼
+    "\u0088": "•",  # bullet
+}
+_LEGACY_LETTERS = re.compile("[À-ÿ]")  # À … ÿ — where cp1251 keeps А … я
+_CYRILLIC = re.compile("[Ѐ-ӿ]")
+_LATIN = re.compile("[A-Za-z]")
+
+
+def looks_like_legacy_mongolian(text: str) -> bool:
+    """True when most letters are À…ÿ codes and there is almost no real Cyrillic.
+
+    Real English has no such letters; French or German use a few per word at most,
+    far below the 40% share that a garbled Mongolian text has.
+    """
+    legacy = len(_LEGACY_LETTERS.findall(text))
+    if legacy < 20:
+        return False
+    cyrillic = len(_CYRILLIC.findall(text))
+    latin = len(_LATIN.findall(text))
+    return legacy > 4 * cyrillic and legacy > 0.4 * (legacy + latin)
+
+
+def decode_legacy_mongolian(text: str) -> str:
+    """Turn "Çîðèëãî" back into "Зорилго" (always converts — check first with
+    looks_like_legacy_mongolian)."""
+    out = []
+    for ch in text:
+        if ch in _LEGACY_EXTRA:
+            out.append(_LEGACY_EXTRA[ch])
+        elif "\u00c0" <= ch <= "\u00ff":
+            out.append(bytes([ord(ch)]).decode("cp1251"))
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def clean_text(text: str) -> str:
     """Tidy extracted text: drop odd characters, squeeze spaces, keep paragraph breaks."""
     text = text.replace("\x00", "").replace("­", "")  # null bytes, soft hyphens
-    text = re.sub(r"[ \t ​]+", " ", text)
+    text = re.sub("[ \t ​]+", " ", text)  # spaces, tabs, non-breaking/zero-width spaces
     lines = [line.strip() for line in text.splitlines()]
     text = "\n".join(lines)
     text = re.sub(r"\n{3,}", "\n\n", text)  # at most one empty line in a row
@@ -52,7 +99,13 @@ def parse_docx(path: Path) -> list[Page]:
 
 def parse_file(path: Path, file_type: str) -> list[Page]:
     if file_type == "pdf":
-        return parse_pdf(path)
-    if file_type == "docx":
-        return parse_docx(path)
-    raise ValueError(f"unsupported file type: {file_type}")
+        pages = parse_pdf(path)
+    elif file_type == "docx":
+        pages = parse_docx(path)
+    else:
+        raise ValueError(f"unsupported file type: {file_type}")
+
+    # Decide for the whole document, so even a short page (e.g. only a title) is fixed.
+    if looks_like_legacy_mongolian(" ".join(p.text for p in pages)):
+        pages = [Page(p.number, decode_legacy_mongolian(p.text)) for p in pages]
+    return pages

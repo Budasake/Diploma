@@ -46,10 +46,13 @@ Each step stops at the first answer; the step is logged in `messages.route`:
 - Tests: 61 passing (parse, chunking, real-model similarity, upload permissions/limits/status, delete, reprocess).
 - Quick check with a Mongolian lecture PDF: the right page was the top search hit for all 3 test questions
   (similarity 0.32–0.53 vs ~0.22 for others) — useful baseline for the M3 retrieval threshold.
+- Legacy Mongolian fonts ("Arial Mon"-style, text like `Çîðèëãî`) are detected per document and decoded
+  (cp1251 + ³→ү, °→ө, ¼→ё …) — fixed all 8 F.CSM101 lab PDFs. Details: `docs/file-reading.md` §2b.
 - Known limits: scanned PDFs (images) → `no_text` (no OCR); DOCX has no page numbers (citation = file only);
   PPTX not supported yet; background tasks are in-process (fine for one server; a job queue would be needed at scale).
 
 Explanation of how files are read (for the thesis/defense): `docs/file-reading.md`.
+Mongolian/English handling, the cross-lingual weak spot and planned improvements: `docs/languages.md`.
 
 ## Key decisions
 - Local Postgres.app now; move to a hosted Postgres when deploying (same engine, only the URL changes).

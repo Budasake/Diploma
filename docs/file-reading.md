@@ -53,10 +53,9 @@ def parse_pdf(path):
 
 - **Scanned PDFs** are photos of paper — no letters, only pixels. The system marks them **"no_text"**.
   (Reading them would need OCR — optical character recognition — not built.)
-- **Old fonts:** some PDFs use an old Mongolian font that stores Cyrillic letters in the slots of Latin ones,
-  so the text comes out as `Çîðèëãî` instead of «Зорилго». The letters follow a fixed pattern (the old Windows
-  Cyrillic code page cp1251, plus `³`→ү, `°`→ө, `¼`→ё), so it can be converted back automatically.
-  All 8 lab PDFs of F.CSM101 have this problem.
+- **Old fonts (fixed automatically):** some documents were typed with old Mongolian fonts (e.g. "Arial Mon")
+  that draw Cyrillic letters but store them under Latin-1 codes. The text then comes out as `Çîðèëãî` instead
+  of «Зорилго». See section 2b.
 
 ## 2. How a DOCX is read
 
@@ -83,6 +82,35 @@ def parse_docx(path):
 
 **Why no page numbers?** A DOCX doesn't store pages. Word works out the page breaks only when it draws the
 document on screen, and they change with paper size, font, and so on. So a DOCX citation names only the file.
+
+## 2b. Fixing old Mongolian fonts
+
+All 8 lab PDFs of F.CSM101 came out garbled: `Çîðèëãî: Èíòåðïðåòàòîðûí ³íäñèéã îéëãîõ`.
+The garbling follows a fixed pattern, so it can be reversed:
+
+- Letters А…я are stored as À…ÿ, exactly as in the old Windows Cyrillic code page **cp1251**.
+- A few letters that cp1251 doesn't have are stored in odd places:
+
+| Stored as | Real letter |
+|---|---|
+| `³` | ү |
+| `\x93` | Ү |
+| `°` | ө |
+| `\x90` | Ө |
+| `¼` | ё |
+| `\x88` | • (bullet) |
+
+**How the code decides** (`looks_like_legacy_mongolian` in `parse.py`): a document is treated as garbled only
+when there are at least 20 À…ÿ letters, they make up more than 40% of all Latin letters, and there is almost no
+real Cyrillic. Normal English has none of these letters, and French or German use only a few, so they are never
+touched. The decision is made for the **whole document**, so a short page (only a title, say) is fixed too.
+
+**How it converts** (`decode_legacy_mongolian`): each À…ÿ character is decoded with cp1251; the 6 special
+characters use the table above; everything else (digits, English words like "C++", punctuation) stays as it is.
+
+**Result on the real files:** all 8 labs fixed with no garbled characters left; the 19 lectures, the 574-page
+English textbook and the other documents were left unchanged. Searching lab2 with
+«Палиндром хэлийг CFG ашиглан хэрхэн тодорхойлох вэ?» gave a similarity of **0.52 before the fix and 0.76 after**.
 
 ## 3. Cleaning the text: `clean_text()`
 
@@ -135,7 +163,7 @@ plus the magic-number check. Teachers often lecture from slides, so this is a go
 | Syllabus, grading document | 2 | Mongolian, clean |
 | `F_CSM101_QAQ.docx` | 1 | Mongolian, clean; "Асуулт: … / Хариулт: …" format, ready for the FAQ import (M2c) |
 | Textbook (574 pages) | 1 | English, clean; 3,089 chunks, read in about 6 s |
-| Labs | 8 | Readable but garbled by the old-font problem (section 1); needs the encoding fix |
+| Labs | 8 | Old Mongolian font → garbled text; **fixed automatically** (section 2b) |
 
 ## How to say it in the defense (one paragraph)
 
@@ -144,5 +172,5 @@ plus the magic-number check. Teachers often lecture from slides, so this is a go
 > paragraphs and tables from the document's XML. Keeping page numbers lets every answer cite its source. The text
 > is then normalized, split into ~600-character overlapping chunks, converted into 384-dimensional semantic
 > vectors by a local multilingual model, and stored in PostgreSQL with pgvector. Files are validated by their
-> binary signature rather than by name, and scanned PDFs without a text layer are detected and flagged instead of
-> silently failing."
+> binary signature rather than by name, scanned PDFs without a text layer are detected and flagged instead of
+> silently failing, and text typed with legacy Mongolian fonts is detected and converted back to proper Cyrillic."
