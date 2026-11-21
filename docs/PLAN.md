@@ -53,6 +53,7 @@ Each step stops at the first answer; the step is logged in `messages.route`:
 
 Explanation of how files are read (for the thesis/defense): `docs/file-reading.md`.
 Mongolian/English handling, the cross-lingual weak spot and planned improvements: `docs/languages.md`.
+What to understand from M2 (study guide + defense questions): `docs/m2-summary.md`.
 
 ## M2c — what was built (22 Nov 2026)
 - Table `faq_items` (course, category, question, answer, `embedding vector(384)` of the question, source
