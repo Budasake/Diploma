@@ -50,6 +50,39 @@ export function materialFileUrl(m: Pick<Material, "id" | "course_id">): string {
   return `/api/courses/${m.course_id}/materials/${m.id}/file`;
 }
 
+/** One piece of text the AI can search (what it "read" from a file). */
+export type Chunk = { id: number; position: number; page: number | null; text: string };
+
+/** Matches the backend's FaqOut schema. */
+export type FaqItem = {
+  id: number;
+  category: string | null;
+  question: string;
+  answer: string;
+  source: "import" | "manual";
+  position: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FaqImportResult = { found: number; added: number; updated: number; unchanged: number };
+
+export type SearchResult = {
+  query: string;
+  faq: { id: number; category: string | null; question: string; answer: string; similarity: number }[];
+  chunks: { material_id: number; filename: string; page: number | null; text: string; similarity: number }[];
+};
+
+/** Group FAQ items by category, keeping their order. */
+export function groupFaq(items: FaqItem[]): [string, FaqItem[]][] {
+  const groups = new Map<string, FaqItem[]>();
+  for (const item of items) {
+    const key = item.category ?? "Бусад";
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  return [...groups.entries()];
+}
+
 export const roleHome: Record<Role, string> = {
   student: "/student",
   teacher: "/teacher",

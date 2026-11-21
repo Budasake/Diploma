@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, courses, health, materials
+from app.api import auth, courses, faq, health, materials, search
 from app.core.config import get_settings
 from app.ingest.pipeline import fail_interrupted_jobs
 
@@ -42,3 +42,5 @@ app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(courses.router, prefix="/api")
 app.include_router(materials.router, prefix="/api")
+app.include_router(faq.router, prefix="/api")
+app.include_router(search.router, prefix="/api")

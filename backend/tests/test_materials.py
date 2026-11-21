@@ -235,3 +235,29 @@ def test_reprocess_rebuilds_chunks(teacher, course):
     [material] = materials(teacher, course["id"])
     assert material["status"] == "ready"
     assert count_chunks(material_id) == 2  # replaced, not doubled
+
+
+# ---------- one material / what the AI read ----------
+
+
+def test_get_one_material(teacher, enrolled_student, course):
+    material_id = upload(teacher, course["id"]).json()["id"]
+    url = f"/api/courses/{course['id']}/materials/{material_id}"
+
+    assert teacher.get(url).json()["filename"] == "lecture1.pdf"
+    assert enrolled_student.get(url).json()["page_count"] == 2
+
+
+def test_teacher_sees_chunks_of_one_page(teacher, course):
+    material_id = upload(teacher, course["id"]).json()["id"]
+    url = f"/api/courses/{course['id']}/materials/{material_id}/chunks"
+
+    assert len(teacher.get(url).json()) == 2
+    [chunk] = teacher.get(url, params={"page": 2}).json()
+    assert chunk["text"] == "Loops repeat a block of code"
+
+
+def test_student_cannot_see_chunks(teacher, enrolled_student, course):
+    material_id = upload(teacher, course["id"]).json()["id"]
+    url = f"/api/courses/{course['id']}/materials/{material_id}/chunks"
+    assert enrolled_student.get(url).status_code == 404

@@ -21,3 +21,14 @@ class MaterialOut(BaseModel):
     chunk_count: int
     created_at: datetime
     processed_at: datetime | None
+
+
+class ChunkOut(BaseModel):
+    """One piece of text the AI can search (see app/ingest/chunking.py)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    position: int
+    page: int | None
+    text: str

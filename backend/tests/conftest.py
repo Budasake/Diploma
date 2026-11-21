@@ -5,6 +5,7 @@ Tests use a separate database (`diploma_test`) so they never touch your real
 data. Tables are created once per test run and emptied before every test.
 """
 
+import hashlib
 import os
 import shutil
 import tempfile
@@ -15,6 +16,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-that-is-long-enough-1234567
 # Uploaded files go to a throw-away folder, not backend/data/uploads.
 os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="diploma-test-uploads-")
 
+import numpy as np  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import text  # noqa: E402
@@ -79,15 +81,21 @@ def make_user():
 
 @pytest.fixture(autouse=True)
 def _fake_embeddings(request, monkeypatch):
-    """Tests don't need the real 220 MB model: use simple fake vectors instead.
-    Mark a test with @pytest.mark.real_embeddings to use the real model."""
+    """Tests don't need the real 220 MB model: use fake vectors instead.
+    The same text always gets the same vector, different texts get very different
+    ones — enough to test search. Mark a test with @pytest.mark.real_embeddings
+    to use the real model."""
     if "real_embeddings" in request.keywords:
         return
 
     def fake(texts: list[str]) -> list[list[float]]:
-        return [[float(len(t) % 7 + 1)] + [0.0] * (EMBEDDING_DIM - 1) for t in texts]
+        vectors = []
+        for item in texts:
+            seed = int.from_bytes(hashlib.sha256(item.encode()).digest()[:8], "big")
+            vectors.append(np.random.default_rng(seed).standard_normal(EMBEDDING_DIM).tolist())
+        return vectors
 
-    monkeypatch.setattr("app.ingest.pipeline.embed_texts", fake)
+    monkeypatch.setattr("app.ai.embeddings.embed_texts", fake)
 
 
 def login_as(email: str) -> TestClient:

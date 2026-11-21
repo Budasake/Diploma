@@ -12,7 +12,16 @@ import hashlib
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 
@@ -20,8 +29,8 @@ from app.api.courses import can_manage, get_managed_course, get_visible_course
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
 from app.ingest.pipeline import process_material, stored_path
-from app.models import Course, Material, MaterialStatus, User
-from app.schemas.material import MaterialOut
+from app.models import Chunk, Course, Material, MaterialStatus, User
+from app.schemas.material import ChunkOut, MaterialOut
 
 router = APIRouter(prefix="/courses/{course_id}/materials", tags=["materials"])
 
@@ -124,6 +133,29 @@ def upload_material(
     db.refresh(material)
     background.add_task(process_material, material.id)
     return material
+
+
+@router.get("/{material_id}", response_model=MaterialOut)
+def get_material(course_id: int, material_id: int, user: CurrentUser, db: DbSession) -> Material:
+    course = get_visible_course(db, course_id, user)
+    return _get_material(db, course, material_id, user)
+
+
+@router.get("/{material_id}/chunks", response_model=list[ChunkOut])
+def list_material_chunks(
+    course_id: int,
+    material_id: int,
+    user: CurrentUser,
+    db: DbSession,
+    page: Annotated[int | None, Query(ge=1)] = None,
+) -> list[Chunk]:
+    """What the AI read from this file (optionally one page) — for the teacher to check."""
+    course = get_managed_course(db, course_id, user)
+    material = _get_material(db, course, material_id, user)
+    query = select(Chunk).where(Chunk.material_id == material.id).order_by(Chunk.position)
+    if page is not None:
+        query = query.where(Chunk.page == page)
+    return list(db.scalars(query))
 
 
 @router.get("/{material_id}/file")

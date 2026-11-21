@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import delete, update
 
-from app.ai.embeddings import embed_texts
+from app.ai import embeddings
 from app.core.config import get_settings
 from app.core.db import SessionLocal
 from app.ingest.chunking import chunk_pages
@@ -34,7 +34,7 @@ def process_material(material_id: int) -> None:
         try:
             pages = parse_file(stored_path(material), material.file_type)
             pieces = chunk_pages(pages)
-            vectors = embed_texts([p.text for p in pieces])
+            vectors = embeddings.embed_texts([p.text for p in pieces])
 
             # Replace any chunks from an earlier run (reprocess).
             db.execute(delete(Chunk).where(Chunk.material_id == material.id))

@@ -49,22 +49,29 @@ backend/app/
   core/db.py            engine, get_db(), Base
   core/security.py      hash_password/verify_password (Argon2), create/decode_access_token (JWT)
   models/               user.py (User, UserRole), course.py (Course, Enrollment), material.py (Material, MaterialStatus,
-                        Chunk with vector(384) + HNSW index) — import new models in models/__init__.py
-  schemas/              Pydantic request/response models (auth.py, course.py, material.py)
+                        Chunk with vector(384) + HNSW index), faq.py (FaqItem with question embedding)
+                        — import new models in models/__init__.py
+  schemas/              Pydantic request/response models (auth.py, course.py, material.py, faq.py incl. search)
   api/deps.py           DbSession, CurrentUser, require_role(...)
   api/health.py         GET /api/health
   api/auth.py           POST register/login/logout, GET me  (errors are short codes, e.g. "email_taken")
   api/courses.py        courses CRUD, join by code, students list/remove (no access → 404, not 403);
                         can_manage / get_visible_course / get_managed_course are reused by other routers
-  api/materials.py      /courses/{id}/materials: upload (202 + BackgroundTasks), list, /file, delete, reprocess
-  ingest/               parse.py (pypdf/python-docx → pages) → chunking.py (~600 chars, 100 overlap, per page)
+  api/materials.py      /courses/{id}/materials: upload (202 + BackgroundTasks), list, one, /chunks?page=, /file,
+                        delete, reprocess
+  api/faq.py            /courses/{id}/faq: list (students too), create/patch/delete, delete all, POST /import (DOCX)
+  api/search.py         GET /courses/{id}/search?q= (teacher test search: FAQ + chunks with similarity)
+  ingest/               faq.py (Асуулт/Хариулт DOCX → FaqEntry list); parse.py (pypdf/python-docx → pages,
+                        legacy Mongolian font fix) → chunking.py (~600 chars, 100 overlap, per page)
                         → pipeline.py process_material() (embed + store, sets status); files in backend/data/uploads
-  ai/embeddings.py      embed_texts() — local fastembed multilingual MiniLM (384-dim), model cached in backend/data/models
+  ai/embeddings.py      embed_texts() — local fastembed multilingual MiniLM (384-dim), model cached in backend/data/models.
+                        Call it as `embeddings.embed_texts(...)` (module attribute) so tests can replace it.
+  ai/retrieval.py       embed_query(), search_faq(), search_chunks() — pgvector cosine search inside one course
   scripts/create_user.py
-backend/alembic/versions/   001 pgvector, 002 users, 003 courses+enrollments, 004 materials+chunks
+backend/alembic/versions/   001 pgvector, 002 users, 003 courses+enrollments, 004 materials+chunks, 005 faq_items
 backend/tests/              conftest.py (diploma_test DB, temp UPLOAD_DIR, fake embeddings unless @pytest.mark.real_embeddings,
-                            fixtures make_user/teacher/other_teacher/student/admin, login_as), sample_files.py (make_pdf/make_docx),
-                            test_health/auth/courses/materials/ingest.py
+                            fixtures make_user/teacher/other_teacher/student/admin, login_as; fake embeddings are hash-based), sample_files.py (make_pdf/make_docx),
+                            test_health/auth/courses/materials/ingest/faq.py
 web/src/
   app/page.tsx              landing page (components/landing/*, animated ChatPreview)
   app/(auth)/login|register login/register pages (components/auth/*)
@@ -72,11 +79,14 @@ web/src/
   components/dashboard/     DashboardShell (top bar + logout), ComingSoonCards
   components/courses/       CourseCard, CreateCourseForm, JoinCodeCard, JoinCourseForm, StudentsTable, DeleteCourseButton
   components/materials/     MaterialsManager (teacher: drag-drop, XHR upload progress, polls while processing),
-                            StudentMaterialList, MaterialStatusBadge
+                            StudentMaterialList, MaterialStatusBadge, MaterialViewer (PDF at ?page=N + teacher text panel)
+  components/faq/           FaqManager (teacher: import/add/edit/delete), FaqList (student, grouped + filter)
+  components/search/        SearchTester (teacher test search)
+  components/courses/BackLink.tsx  "← back" link for inner pages
   lib/api-server.ts         apiGet() for Server Components (forwards cookie to FastAPI)
   lib/auth.ts               getCurrentUser(), requireRole(role) — call inside <Suspense>
   lib/api-errors.ts         backend error code → Mongolian message; safeNextPath()
-  lib/types.ts              User, Course, Student, Material, materialFileUrl(), roleHome, roleLabel
+  lib/types.ts              User, Course, Student, Material, Chunk, FaqItem, SearchResult, groupFaq(), materialFileUrl(), …
   proxy.ts                  optimistic redirect to /login for /student|/teacher|/admin without cookie
 ```
 
@@ -90,4 +100,8 @@ web/src/
 - **Mutations from the UI:** client component `fetch("/api/...")` then `router.refresh()` (or `router.push`).
 - **Uploads through Next.js:** `next.config.ts` sets `experimental.proxyClientMaxBodySize: "60mb"` — without it the
   proxy cuts request bodies at 10 MB. FastAPI enforces the real 50 MB limit.
+- **Git ignore gotcha:** the teacher's real course files live in `/materials/` (root, git-ignored). Always write
+  root-only ignore rules with a leading `/` — a plain `materials/` also hid `web/src/components/materials/`.
+- **Tailwind gotcha:** arbitrary `vh` classes like `h-[75vh]` were not generated (px ones are) — use an inline
+  `style={{ height: "75vh" }}`. Grid columns with long words (URLs, emails) need `min-w-0` or they overflow on phones.
 - Tests: one behavior per test; use fixtures `client`, `make_user`; separate `TestClient` per logged-in user.

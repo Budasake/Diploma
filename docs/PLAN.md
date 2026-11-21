@@ -16,8 +16,8 @@ student, teacher, admin. Thesis evaluation compares it with the old Telegram bot
 | M1 Auth & roles | Register (students), login/logout, JWT httpOnly cookie, role guards, dashboards, create_user script | ✅ done |
 | M2a Courses | Teacher creates course + 6-char join code; students join; teacher sees/removes students | ✅ done |
 | M2b Materials | Upload PDF/DOCX → parse → chunk (with file/page metadata) → local embeddings → `chunks` table (pgvector); status per file; background processing | ✅ done |
-| **M2c FAQ + viewer** | Import Асуулт/Хариулт DOCX into `faq_items`; open PDF at a page | ⏭️ **next** |
-| M3 Smart chat | Retrieval + answer router + Gemini `generate()` + SSE streaming + citations + chat UI + route logging | ⬜ |
+| M2c FAQ + viewer | Import Асуулт/Хариулт DOCX into `faq_items`; open PDF at a page; teacher test search | ✅ done |
+| **M3 Smart chat** | Retrieval + answer router + Gemini `generate()` + SSE streaming + citations + chat UI + route logging | ⏭️ **next** |
 | M4 Precompute & review | One-time Gemini drafts (summary, glossary, quiz questions) per material → teacher review queue | ⬜ |
 | M5 Learning | Quizzes, flashcards, topic pages, progress | ⬜ |
 | M6 Analytics & admin | Top questions, "not found" gaps, LLM-call share; admin user management, usage | ⬜ |
@@ -53,6 +53,40 @@ Each step stops at the first answer; the step is logged in `messages.route`:
 
 Explanation of how files are read (for the thesis/defense): `docs/file-reading.md`.
 Mongolian/English handling, the cross-lingual weak spot and planned improvements: `docs/languages.md`.
+
+## M2c — what was built (22 Nov 2026)
+- Table `faq_items` (course, category, question, answer, `embedding vector(384)` of the question, source
+  import/manual, position). Migration 005.
+- FAQ parser (`backend/app/ingest/faq.py`): Word headings → categories; «Асуулт: …» starts a question,
+  «Хариулт: …» its answer; an empty «Хариулт:» takes the following lines; otherwise only list items continue an
+  answer; a blank line, heading or next question ends it; other text is ignored. The real F.CSM101 FAQ gives
+  **85 pairs in 11 categories** (all of them), and the grading notes outside Q/A pairs are not glued on.
+- API: `GET/POST/PATCH/DELETE /api/courses/{id}/faq`, `POST .../faq/import` (DOCX; re-import is safe — new
+  questions added, changed answers updated, no duplicates; same question = same text ignoring case/spaces).
+  Students can read the FAQ; only the course teacher/admin can change it.
+- `backend/app/ai/retrieval.py`: `search_faq()` and `search_chunks()` (pgvector cosine) — reused by M3.
+  `GET /api/courses/{id}/search?q=` = teacher "test search" page (FAQ + passages with similarity scores).
+- Viewer: `/{teacher|student}/courses/{id}/materials/{mid}?page=N` shows the PDF at a page (browser PDF viewer,
+  `#page=N`) — citations in M3 will link here. Teachers also see "what the AI read" from that page
+  (`GET .../materials/{mid}/chunks?page=N`). On phones, PDFs open in a new tab.
+- UI: teacher FAQ page (import, add, edit, delete), test-search page, links from the course page;
+  student course page shows the FAQ (grouped, with a filter) and materials open in the viewer.
+- Tests: 87 passing. Fake embeddings in tests are now hash-based (same text → same vector), so search is testable.
+
+**First retrieval measurements (real files, real model) — starting point for M3 thresholds:**
+
+| Student question | Best FAQ match | Best passage |
+|---|---|---|
+| Ирц хэдэн оноотой вэ? (exact FAQ text) | 1.00 ✅ | 0.52 syllabus |
+| Ирцэнд хэдэн оноо өгдөг вэ (reworded) | 0.79 ✅ correct | 0.54 |
+| Багш нь хэн бэ | 0.90 ✅ «Үндсэн багш хэн бэ?» | 0.68 |
+| Шалгалт хэзээ болох вэ | 0.86 ⚠️ «Явцын шалгалт…» (ambiguous: midterm or final?) | 0.52 |
+| Палиндром хэлийг CFG-ээр яаж тодорхойлох вэ | 0.49 (no FAQ) | 0.74 ✅ lab2.pdf p.1 |
+| Стек санах ой гэж юу вэ | 0.56 (wrong FAQ) | 0.56 Memory Management p.4 |
+| Монголын нийслэл хаана вэ (off-topic) | 0.28 | 0.32 |
+
+So: FAQ threshold around **0.75–0.8**; "not in the materials" gate around **0.4–0.45**; ambiguous questions
+(«шалгалт») need care — e.g. show the top 2 FAQ answers when their scores are close. Tune in M3/M7.
 
 ## Key decisions
 - Local Postgres.app now; move to a hosted Postgres when deploying (same engine, only the URL changes).

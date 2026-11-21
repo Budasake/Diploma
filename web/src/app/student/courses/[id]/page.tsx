@@ -5,10 +5,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ListChecks, MessageSquare } from "lucide-react";
 import ComingSoonCards from "@/components/dashboard/ComingSoonCards";
 import DashboardShell, { DashboardSkeleton } from "@/components/dashboard/DashboardShell";
+import FaqList from "@/components/faq/FaqList";
 import StudentMaterialList from "@/components/materials/StudentMaterialList";
 import { apiGet } from "@/lib/api-server";
 import { requireRole } from "@/lib/auth";
-import type { Course, Material } from "@/lib/types";
+import type { Course, FaqItem, Material } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Хичээл · AI Сургалтын Туслах" };
 
@@ -25,13 +26,15 @@ async function StudentCourse({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
 
-  const [result, materialsRes] = await Promise.all([
+  const [result, materialsRes, faqRes] = await Promise.all([
     apiGet<Course>(`/api/courses/${id}`),
     apiGet<Material[]>(`/api/courses/${id}/materials`),
+    apiGet<FaqItem[]>(`/api/courses/${id}/faq`),
   ]);
   if (!result.ok) notFound(); // not enrolled or doesn't exist
   const course = result.data;
   const materials = materialsRes.ok ? materialsRes.data : [];
+  const faq = faqRes.ok ? faqRes.data : [];
 
   return (
     <DashboardShell user={user}>
@@ -44,12 +47,20 @@ async function StudentCourse({ params }: { params: Promise<{ id: string }> }) {
       <p className="mt-2 text-muted">Багш: {course.teacher_name}</p>
       {course.description && <p className="mt-3 max-w-2xl text-muted">{course.description}</p>}
 
-      <section className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold">
-          Материал <span className="text-muted">({materials.length})</span>
-        </h2>
-        <StudentMaterialList materials={materials} />
-      </section>
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_24rem]">
+        <section className="min-w-0">
+          <h2 className="mb-3 text-lg font-semibold">
+            Түгээмэл асуулт <span className="text-muted">({faq.length})</span>
+          </h2>
+          <FaqList items={faq} />
+        </section>
+        <section className="min-w-0">
+          <h2 className="mb-3 text-lg font-semibold">
+            Материал <span className="text-muted">({materials.length})</span>
+          </h2>
+          <StudentMaterialList materials={materials} />
+        </section>
+      </div>
 
       <ComingSoonCards
         items={[

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronRight, HelpCircle, Search } from "lucide-react";
 import DeleteCourseButton from "@/components/courses/DeleteCourseButton";
 import JoinCodeCard from "@/components/courses/JoinCodeCard";
 import StudentsTable from "@/components/courses/StudentsTable";
@@ -10,7 +10,7 @@ import MaterialsManager from "@/components/materials/MaterialsManager";
 import DashboardShell, { DashboardSkeleton } from "@/components/dashboard/DashboardShell";
 import { apiGet } from "@/lib/api-server";
 import { requireRole } from "@/lib/auth";
-import type { Course, Material, Student } from "@/lib/types";
+import type { Course, FaqItem, Material, Student } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Хичээл · AI Сургалтын Туслах" };
 
@@ -27,15 +27,17 @@ async function TeacherCourse({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
 
-  const [courseRes, studentsRes, materialsRes] = await Promise.all([
+  const [courseRes, studentsRes, materialsRes, faqRes] = await Promise.all([
     apiGet<Course>(`/api/courses/${id}`),
     apiGet<Student[]>(`/api/courses/${id}/students`),
     apiGet<Material[]>(`/api/courses/${id}/materials`),
+    apiGet<FaqItem[]>(`/api/courses/${id}/faq`),
   ]);
   if (!courseRes.ok) notFound();
   const course = courseRes.data;
   const students = studentsRes.ok ? studentsRes.data : [];
   const materials = materialsRes.ok ? materialsRes.data : [];
+  const faqCount = faqRes.ok ? faqRes.data.length : 0;
 
   return (
     <DashboardShell user={user}>
@@ -63,6 +65,20 @@ async function TeacherCourse({ params }: { params: Promise<{ id: string }> }) {
 
         <div className="space-y-6">
           {course.join_code && <JoinCodeCard courseId={course.id} joinCode={course.join_code} />}
+          <div className="glass divide-y divide-border overflow-hidden rounded-2xl">
+            <NavRow
+              href={`/teacher/courses/${course.id}/faq`}
+              icon={<HelpCircle className="h-4 w-4" />}
+              title="Түгээмэл асуулт"
+              text={faqCount > 0 ? `${faqCount} асуулт` : "Word файлаас оруулах"}
+            />
+            <NavRow
+              href={`/teacher/courses/${course.id}/search`}
+              icon={<Search className="h-4 w-4" />}
+              title="Хайлт турших"
+              text="Систем юу олохыг шалгах"
+            />
+          </div>
           <section>
             <h2 className="mb-3 text-lg font-semibold">
               Оюутнууд <span className="text-muted">({students.length})</span>
@@ -72,5 +88,20 @@ async function TeacherCourse({ params }: { params: Promise<{ id: string }> }) {
         </div>
       </div>
     </DashboardShell>
+  );
+}
+
+function NavRow({ href, icon, title, text }: { href: string; icon: React.ReactNode; title: string; text: string }) {
+  return (
+    <Link href={href} className="flex items-center gap-3 px-5 py-4 hover:bg-surface-2/60">
+      <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-primary-soft text-primary-soft-foreground">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{title}</span>
+        <span className="block text-sm text-muted">{text}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-muted" />
+    </Link>
   );
 }
