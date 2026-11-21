@@ -61,12 +61,17 @@ const teacherFeatures: Feature[] = [
 
 function FeatureColumn({ title, features }: { title: string; features: Feature[] }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-6 md:p-8">
-      <h3 className="text-xl font-semibold">{title}</h3>
-      <ul className="mt-6 space-y-6">
+    <div className="glass group relative overflow-hidden rounded-3xl p-6 transition-colors hover:border-primary/40 md:p-8">
+      {/* Soft glow that appears on hover */}
+      <div
+        aria-hidden
+        className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-violet-600/20 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100"
+      />
+      <h3 className="relative text-xl font-semibold">{title}</h3>
+      <ul className="relative mt-6 space-y-6">
         {features.map(({ icon: Icon, title, text }) => (
           <li key={title} className="flex gap-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary-soft text-primary-soft-foreground">
               <Icon className="h-5 w-5" />
             </span>
             <div>
@@ -82,7 +87,7 @@ function FeatureColumn({ title, features }: { title: string; features: Feature[]
 
 export default function Features() {
   return (
-    <section id="features" className="scroll-mt-16 px-4 py-20">
+    <section id="features" className="scroll-mt-16 px-4 py-24">
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           eyebrow="Боломжууд"

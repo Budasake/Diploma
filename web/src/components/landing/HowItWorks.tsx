@@ -38,9 +38,42 @@ const steps: Step[] = [
   },
 ];
 
+function StepCard({ step, index }: { step: Step; index: number }) {
+  const { icon: Icon, title, text, usesLlm } = step;
+  return (
+    <div className="flex h-full flex-col rounded-2xl bg-background/80 p-5 backdrop-blur">
+      <div className="flex items-center justify-between">
+        <span
+          className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+            usesLlm
+              ? "bg-brand-gradient text-white shadow-lg shadow-violet-500/40"
+              : "border border-primary/30 bg-primary-soft text-primary-soft-foreground"
+          }`}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+        <span className="font-mono text-sm text-muted">0{index + 1}</span>
+      </div>
+      <p className="mt-4 font-medium">{title}</p>
+      <p className="mt-1 flex-1 text-sm text-muted">{text}</p>
+      <span
+        className={`mt-4 w-fit rounded-full px-2.5 py-0.5 text-xs font-medium ${
+          usesLlm ? "bg-primary-soft text-primary-soft-foreground" : "bg-success-soft text-success"
+        }`}
+      >
+        {usesLlm ? "LLM дуудна" : "LLM шаардлагагүй"}
+      </span>
+    </div>
+  );
+}
+
 export default function HowItWorks() {
   return (
-    <section id="how" className="scroll-mt-16 bg-surface px-4 py-20">
+    <section id="how" className="relative isolate scroll-mt-16 overflow-hidden px-4 py-24">
+      <div
+        aria-hidden
+        className="absolute top-1/2 left-1/2 -z-10 h-[400px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-600/15 blur-[140px]"
+      />
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           eyebrow="Хэрхэн ажилладаг"
@@ -48,29 +81,25 @@ export default function HowItWorks() {
           description="Асуулт бүрийг хамгийн хурдан, хямд аргаар хариулна. Том хэлний загварыг (LLM) зөвхөн шинэ асуултад ашигладаг тул хурдан бөгөөд зардал бага."
         />
 
-        <ol className="mt-12 grid gap-4 md:grid-cols-5">
-          {steps.map(({ icon: Icon, title, text, usesLlm }, index) => (
-            <li key={title} className="relative flex flex-col rounded-2xl border border-border bg-background p-5">
-              <div className="flex items-center justify-between">
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary-soft-foreground">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="text-sm font-semibold text-muted">{index + 1}</span>
-              </div>
-              <p className="mt-4 font-medium">{title}</p>
-              <p className="mt-1 flex-1 text-sm text-muted">{text}</p>
-              <span
-                className={`mt-4 w-fit rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  usesLlm ? "bg-primary-soft text-primary-soft-foreground" : "bg-success-soft text-success"
-                }`}
-              >
-                {usesLlm ? "LLM дуудна" : "LLM шаардлагагүй"}
-              </span>
+        <ol className="relative mt-14 grid gap-4 md:grid-cols-5">
+          {/* Line connecting the steps (desktop) */}
+          <div
+            aria-hidden
+            className="absolute top-10 right-[10%] left-[10%] hidden h-px bg-linear-to-r from-transparent via-primary/50 to-accent/60 md:block"
+          />
+          {steps.map((step, index) => (
+            <li
+              key={step.title}
+              className={`relative rounded-2xl p-px ${
+                step.usesLlm ? "bg-brand-gradient" : "bg-border"
+              }`}
+            >
+              <StepCard step={step} index={index} />
             </li>
           ))}
         </ol>
 
-        <p className="mt-8 text-center text-sm text-muted">
+        <p className="mt-10 text-center text-sm text-muted">
           Хариулт бүрийн эх сурвалжийг (файл, хуудас) систем өөрөө хавсаргадаг тул зохиомол эх
           сурвалж гарахгүй.
         </p>

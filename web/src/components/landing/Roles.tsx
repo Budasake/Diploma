@@ -32,7 +32,7 @@ const roles: Role[] = [
 
 export default function Roles() {
   return (
-    <section id="roles" className="scroll-mt-16 px-4 py-20">
+    <section id="roles" className="scroll-mt-16 px-4 py-24">
       <div className="mx-auto max-w-6xl">
         <SectionHeading
           eyebrow="Хэрэглэгчид"
@@ -41,8 +41,11 @@ export default function Roles() {
         />
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {roles.map(({ icon: Icon, name, summary, abilities }) => (
-            <article key={name} className="rounded-2xl border border-border bg-surface p-6">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <article
+              key={name}
+              className="glass rounded-3xl p-6 transition-transform duration-300 hover:-translate-y-1 hover:border-primary/40"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-lg shadow-violet-500/30">
                 <Icon className="h-6 w-6" />
               </span>
               <h3 className="mt-4 text-xl font-semibold">{name}</h3>
