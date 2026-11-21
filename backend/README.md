@@ -11,7 +11,18 @@ cp .env.example .env        # then fill in GEMINI_API_KEY etc.
 uv run alembic upgrade head # create/update database tables
 ```
 
-Requires PostgreSQL (Postgres.app) running with a `diploma` database.
+Requires PostgreSQL (Postgres.app) running with a `diploma` database, plus a
+`diploma_test` database for tests (`createdb diploma_test`).
+
+## Accounts
+
+Students register on the website. Create teacher/admin accounts from the terminal
+(the password is asked for, not typed on the command line):
+
+```bash
+uv run python -m app.scripts.create_user --role admin --email admin@example.com --name "Admin"
+uv run python -m app.scripts.create_user --role teacher --email teacher@example.com --name "Г.Ганбат"
+```
 
 ## Everyday commands
 
@@ -31,7 +42,11 @@ app/
   main.py         FastAPI app, CORS, routers
   core/config.py  settings from .env
   core/db.py      database engine, sessions, Base for models
-  api/            endpoints (routers), e.g. health.py → GET /api/health
+  core/security.py password hashing (Argon2) and login tokens (JWT)
+  models/         database tables (user.py)
+  schemas/        request/response shapes (auth.py)
+  api/            endpoints: health.py, auth.py (/api/auth/...), deps.py (login & role checks)
+  scripts/        command-line tools (create_user.py)
 alembic/          database migrations
 tests/            pytest tests
 ```
