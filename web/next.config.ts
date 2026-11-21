@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
     // body by default — that would cut off material uploads. FastAPI enforces the
     // real limit (50 MB); this just has to be a bit higher.
     proxyClientMaxBodySize: "60mb",
+    // The /api rewrite gives up on a silent connection after 30 s by default. The chat
+    // stream also sends a heartbeat every 5 s while the LLM thinks; this is a backup.
+    proxyTimeout: 120_000,
   },
   // The browser calls /api/* on the Next.js site, and Next.js forwards it to
   // FastAPI. Same origin for the browser = no CORS problems, and login cookies

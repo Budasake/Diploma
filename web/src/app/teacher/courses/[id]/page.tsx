@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronRight, HelpCircle, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, HelpCircle, Search, Sparkles } from "lucide-react";
 import DeleteCourseButton from "@/components/courses/DeleteCourseButton";
 import JoinCodeCard from "@/components/courses/JoinCodeCard";
 import StudentsTable from "@/components/courses/StudentsTable";
@@ -71,6 +71,12 @@ async function TeacherCourse({ params }: { params: Promise<{ id: string }> }) {
               icon={<HelpCircle className="h-4 w-4" />}
               title="Түгээмэл асуулт"
               text={faqCount > 0 ? `${faqCount} асуулт` : "Word файлаас оруулах"}
+            />
+            <NavRow
+              href={`/teacher/courses/${course.id}/chat`}
+              icon={<Sparkles className="h-4 w-4" />}
+              title="AI туслахыг турших"
+              text="Оюутан шиг асууж үзэх"
             />
             <NavRow
               href={`/teacher/courses/${course.id}/search`}

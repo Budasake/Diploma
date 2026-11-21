@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ListChecks, MessageSquare } from "lucide-react";
+import { ArrowLeft, ChevronRight, ListChecks, Sparkles } from "lucide-react";
 import ComingSoonCards from "@/components/dashboard/ComingSoonCards";
 import DashboardShell, { DashboardSkeleton } from "@/components/dashboard/DashboardShell";
 import FaqList from "@/components/faq/FaqList";
@@ -47,6 +47,20 @@ async function StudentCourse({ params }: { params: Promise<{ id: string }> }) {
       <p className="mt-2 text-muted">Багш: {course.teacher_name}</p>
       {course.description && <p className="mt-3 max-w-2xl text-muted">{course.description}</p>}
 
+      <Link
+        href={`/student/courses/${course.id}/chat`}
+        className="glass mt-8 flex items-center gap-4 rounded-2xl p-5 transition-colors hover:bg-surface-2/60"
+      >
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-gradient text-white">
+          <Sparkles className="h-6 w-6" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold">AI туслахаас асуух</span>
+          <span className="block text-sm text-muted">Хичээлийн материалаас эх сурвалжтай хариулт авна.</span>
+        </span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-muted" />
+      </Link>
+
       <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_24rem]">
         <section className="min-w-0">
           <h2 className="mb-3 text-lg font-semibold">
@@ -64,7 +78,6 @@ async function StudentCourse({ params }: { params: Promise<{ id: string }> }) {
 
       <ComingSoonCards
         items={[
-          { icon: MessageSquare, title: "AI туслах", text: "Энэ хичээлийн материалаас асуулт асуух." },
           { icon: ListChecks, title: "Сорил", text: "Багшийн баталсан тестээр давтах." },
         ]}
       />

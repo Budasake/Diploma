@@ -73,6 +73,23 @@ export type SearchResult = {
   chunks: { material_id: number; filename: string; page: number | null; text: string; similarity: number }[];
 };
 
+export type Route = "rule" | "faq" | "cache" | "not_found" | "llm" | "error";
+
+export type Citation = { n: number; material_id: number; filename: string; page: number | null };
+
+/** Matches the backend's MessageOut schema. */
+export type ChatMessage = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  route: Route | null;
+  citations: Citation[] | null;
+  created_at: string;
+};
+
+export type Conversation = { id: number; title: string; created_at: string; updated_at: string };
+export type ConversationDetail = Conversation & { messages: ChatMessage[] };
+
 /** Group FAQ items by category, keeping their order. */
 export function groupFaq(items: FaqItem[]): [string, FaqItem[]][] {
   const groups = new Map<string, FaqItem[]>();

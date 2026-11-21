@@ -27,7 +27,7 @@ Roadmap and progress: **`docs/PLAN.md`** (keep it updated when a milestone finis
 | Backend `backend/` | FastAPI, Python 3.12 (uv), SQLAlchemy 2, Alembic, Pydantic v2 |
 | Database | PostgreSQL 17 (Postgres.app, local) + pgvector. DBs: `diploma` (dev), `diploma_test` (pytest) |
 | Auth | Argon2 password hashes, JWT in httpOnly cookie `access_token` (SameSite=Lax), roles student/teacher/admin |
-| LLM | **Gemini free tier** (default), pluggable via `LLM_PROVIDER` in `.env` (gemini/ollama/claude) |
+| LLM | **Gemini free tier** `gemini-3.5-flash` (fallback `-lite`), pluggable via `LLM_PROVIDER` in `.env` |
 | Embeddings | local multilingual model `paraphrase-multilingual-MiniLM-L12-v2` (fastembed), no API cost |
 
 Browser only talks to Next.js (:3000); `next.config.ts` rewrites `/api/*` → FastAPI (:8000). Same origin = no CORS, first-party cookies.
@@ -49,9 +49,10 @@ backend/app/
   core/db.py            engine, get_db(), Base
   core/security.py      hash_password/verify_password (Argon2), create/decode_access_token (JWT)
   models/               user.py (User, UserRole), course.py (Course, Enrollment), material.py (Material, MaterialStatus,
-                        Chunk with vector(384) + HNSW index), faq.py (FaqItem with question embedding)
+                        Chunk with vector(384) + HNSW index), faq.py (FaqItem with question embedding),
+                        chat.py (Conversation, Message with route/citations/latency/tokens, CachedAnswer, Route)
                         — import new models in models/__init__.py
-  schemas/              Pydantic request/response models (auth.py, course.py, material.py, faq.py incl. search)
+  schemas/              Pydantic request/response models (auth.py, course.py, material.py, faq.py incl. search, chat.py)
   api/deps.py           DbSession, CurrentUser, require_role(...)
   api/health.py         GET /api/health
   api/auth.py           POST register/login/logout, GET me  (errors are short codes, e.g. "email_taken")
@@ -61,17 +62,23 @@ backend/app/
                         delete, reprocess
   api/faq.py            /courses/{id}/faq: list (students too), create/patch/delete, delete all, POST /import (DOCX)
   api/search.py         GET /courses/{id}/search?q= (teacher test search: FAQ + chunks with similarity)
+  api/chat.py           POST /courses/{id}/chat → SSE stream (meta, route, delta…, done; heartbeat comments);
+                        conversations list/detail/delete (own only)
   ingest/               faq.py (Асуулт/Хариулт DOCX → FaqEntry list); parse.py (pypdf/python-docx → pages,
                         legacy Mongolian font fix) → chunking.py (~600 chars, 100 overlap, per page)
                         → pipeline.py process_material() (embed + store, sets status); files in backend/data/uploads
   ai/embeddings.py      embed_texts() — local fastembed multilingual MiniLM (384-dim), model cached in backend/data/models.
                         Call it as `embeddings.embed_texts(...)` (module attribute) so tests can replace it.
   ai/retrieval.py       embed_query(), search_faq(), search_chunks() — pgvector cosine search inside one course
+  ai/rules.py           step 1: small-talk replies (whole message must be greeting/thanks/bye/help)
+  ai/router.py          THE ANSWER ROUTER: route_question() → RoutedAnswer (steps 1–4) or LLMPlan (step 5)
+  ai/prompt.py          system prompt, numbered passages, [n] → citations built in code
+  ai/llm.py             stream_chat() — Gemini (thinking off, fallback model on 429/503/timeout); pluggable
   scripts/create_user.py
-backend/alembic/versions/   001 pgvector, 002 users, 003 courses+enrollments, 004 materials+chunks, 005 faq_items
+backend/alembic/versions/   001 pgvector, 002 users, 003 courses+enrollments, 004 materials+chunks, 005 faq_items, 006 chat tables
 backend/tests/              conftest.py (diploma_test DB, temp UPLOAD_DIR, fake embeddings unless @pytest.mark.real_embeddings,
                             fixtures make_user/teacher/other_teacher/student/admin, login_as; fake embeddings are hash-based), sample_files.py (make_pdf/make_docx),
-                            test_health/auth/courses/materials/ingest/faq.py
+                            test_health/auth/courses/materials/ingest/faq/chat.py (chat uses a FakeLLM)
 web/src/
   app/page.tsx              landing page (components/landing/*, animated ChatPreview)
   app/(auth)/login|register login/register pages (components/auth/*)
@@ -82,6 +89,7 @@ web/src/
                             StudentMaterialList, MaterialStatusBadge, MaterialViewer (PDF at ?page=N + teacher text panel)
   components/faq/           FaqManager (teacher: import/add/edit/delete), FaqList (student, grouped + filter)
   components/search/        SearchTester (teacher test search)
+  components/chat/          Chat (SSE reader, conversation list), MessageBubble (route badge, [n] links, citation chips)
   components/courses/BackLink.tsx  "← back" link for inner pages
   lib/api-server.ts         apiGet() for Server Components (forwards cookie to FastAPI)
   lib/auth.ts               getCurrentUser(), requireRole(role) — call inside <Suspense>
@@ -100,6 +108,10 @@ web/src/
 - **Mutations from the UI:** client component `fetch("/api/...")` then `router.refresh()` (or `router.push`).
 - **Uploads through Next.js:** `next.config.ts` sets `experimental.proxyClientMaxBodySize: "60mb"` — without it the
   proxy cuts request bodies at 10 MB. FastAPI enforces the real 50 MB limit.
+- **Streaming (SSE) gotchas:** keep `Cache-Control: no-cache, no-transform` (else Next.js gzips and buffers the
+  whole stream) and the 5 s heartbeat (Next.js proxy drops silent connections; `proxyTimeout` in next.config.ts).
+  Test streaming with `curl --compressed` — plain curl hides the gzip problem.
+- **Router thresholds** live in `core/config.py` (faq 0.75, cache 0.92, retrieval 0.40) — measured, see docs/PLAN.md.
 - **Git ignore gotcha:** the teacher's real course files live in `/materials/` (root, git-ignored). Always write
   root-only ignore rules with a leading `/` — a plain `materials/` also hid `web/src/components/materials/`.
 - **Tailwind gotcha:** arbitrary `vh` classes like `h-[75vh]` were not generated (px ones are) — use an inline

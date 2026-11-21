@@ -17,7 +17,8 @@ student, teacher, admin. Thesis evaluation compares it with the old Telegram bot
 | M2a Courses | Teacher creates course + 6-char join code; students join; teacher sees/removes students | ✅ done |
 | M2b Materials | Upload PDF/DOCX → parse → chunk (with file/page metadata) → local embeddings → `chunks` table (pgvector); status per file; background processing | ✅ done |
 | M2c FAQ + viewer | Import Асуулт/Хариулт DOCX into `faq_items`; open PDF at a page; teacher test search | ✅ done |
-| **M3 Smart chat** | Retrieval + answer router + Gemini `generate()` + SSE streaming + citations + chat UI + route logging | ⏭️ **next** |
+| M3 Smart chat | Retrieval + answer router + Gemini `generate()` + SSE streaming + citations + chat UI + route logging | ✅ done |
+| M3b Hybrid search | Keyword (trigram/BM25-style) + vector search combined; fixes misses like «стек/стэк» | ⏭️ **next** (small) |
 | M4 Precompute & review | One-time Gemini drafts (summary, glossary, quiz questions) per material → teacher review queue | ⬜ |
 | M5 Learning | Quizzes, flashcards, topic pages, progress | ⬜ |
 | M6 Analytics & admin | Top questions, "not found" gaps, LLM-call share; admin user management, usage | ⬜ |
@@ -88,6 +89,48 @@ What to understand from M2 (study guide + defense questions): `docs/m2-summary.m
 
 So: FAQ threshold around **0.75–0.8**; "not in the materials" gate around **0.4–0.45**; ambiguous questions
 («шалгалт») need care — e.g. show the top 2 FAQ answers when their scores are close. Tune in M3/M7.
+
+## M3 — what was built (22 Nov 2026)
+- Tables `conversations`, `messages` (route, citations JSON, FAQ id, best score, latency, LLM model, tokens) and
+  `answer_cache` (question vector, answer, citations, materials fingerprint, hit count). Migration 006.
+- Router `backend/app/ai/router.py`: rules → FAQ (≥ 0.75, numbers must match, near-tie → show both answers) →
+  cache (≥ 0.92, same materials fingerprint, numbers must match) → retrieval gate (< 0.40 → "not found") →
+  Gemini with the top passages (≥ 0.40, max 5). Follow-ups («дэлгэрэнгүй…», short replies) skip FAQ and cache and
+  search together with the previous question; they are never cached.
+- LLM `backend/app/ai/llm.py`: `gemini-3.5-flash`, thinking off (3× faster), temperature 0.2, 45 s timeout,
+  falls back to `gemini-3.5-flash-lite` when busy (429/503) or timed out. Pluggable via `LLM_PROVIDER`.
+- Prompt `backend/app/ai/prompt.py`: answer only from the numbered passages, in the student's language, cite as
+  [1], [2]. Code turns [n] into file + page citations; numbers that point to nothing are removed.
+- `POST /api/courses/{id}/chat` streams Server-Sent Events (meta → route → delta… → done); conversations list /
+  detail / delete. Students and the course teacher can chat; everyone sees only their own conversations.
+- UI: chat page (`/student|teacher/courses/{id}/chat`) with conversation list, streaming text, route badge
+  ("Багшийн хариулт", "AI · материалаас" …), citation numbers and chips that open the PDF viewer at the page.
+- Tests: 108 passing (fake LLM — no Gemini calls in tests).
+
+**Problems found while testing with real Gemini (all fixed):**
+- Next.js gzip-compressed the stream, so browsers got the whole answer at once at the end → `Cache-Control:
+  no-transform`. (curl showed no problem: it doesn't ask for gzip.)
+- Gemini sometimes needs > 30 s before its first word; the Next.js proxy closes silent connections after 30 s →
+  heartbeat comment every 5 s + `proxyTimeout: 120000`.
+- «Дэлгэрэнгүй тайлбарлана уу» matched the FAQ «Пролог гэж юу вэ?» (0.76) → follow-ups never use the FAQ.
+- 16 FAQ questions differ only by a number («3-р долоо хоног»…) → numbers must match for FAQ and cache.
+- If the student leaves mid-answer, the partial answer is still saved (for the log).
+
+**Measured on F.CSM101 (4 files + 85 FAQ, 22 test questions, real Gemini):**
+
+| Route | Count | Avg latency | Range |
+|---|---|---|---|
+| llm | 10 | 11.5 s | 4.1–24.7 s |
+| faq | 7 | 48 ms | 9–131 ms |
+| rule | 2 | 2 ms | |
+| cache | 2 | 17 ms | |
+| not_found | 1 | 59 ms | |
+
+Avg LLM call: ~1,240 prompt tokens, ~160 output tokens. Non-LLM routes are ~200–5,000× faster. (LLM share is
+high here only because the test deliberately asked many new questions — real traffic is measured in M7.)
+
+**Known issues → next:** retrieval missed lecture pages about «стек/стэк» (spelling varies; meaning search
+prefers general pages) → hybrid keyword + vector search (M3b). Gemini free-tier latency varies a lot (4–25 s).
 
 ## Key decisions
 - Local Postgres.app now; move to a hosted Postgres when deploying (same engine, only the URL changes).

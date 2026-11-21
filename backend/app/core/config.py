@@ -45,11 +45,22 @@ class Settings(BaseSettings):
     max_upload_mb: int = 50
     embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
-    # LLM — used later by the chat step. The provider is pluggable so it can be
+    # LLM (answer router step 5). The provider is pluggable so it can be
     # switched (gemini / ollama / claude …) without code changes.
     llm_provider: str = "gemini"
     gemini_api_key: SecretStr | None = None
-    gemini_model: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    gemini_fallback_model: str = "gemini-3.5-flash-lite"
+    llm_timeout_seconds: int = 45  # then the fallback model is tried
+
+    # Answer router thresholds (cosine similarity, 0…1). Measured on F.CSM101 in M2c;
+    # see docs/PLAN.md. Tuned further in the evaluation (M7).
+    faq_threshold: float = (
+        0.75  # FAQ question means the same → teacher's answer (right: 0.79–1.0, wrong: ≤0.56)
+    )
+    cache_threshold: float = 0.92  # cached question means the same → reuse answer
+    retrieval_threshold: float = 0.40  # best passage below this → "not in the materials"
+    retrieval_top_k: int = 5  # passages given to the LLM
 
 
 @lru_cache

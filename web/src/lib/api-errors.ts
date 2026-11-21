@@ -18,6 +18,8 @@ const messages: Record<string, string> = {
   faq_not_found: "Асуулт олдсонгүй.",
   faq_docx_only: "Түгээмэл асуултыг зөвхөн DOCX файлаас оруулна.",
   invalid_faq_file: "Файлыг уншиж чадсангүй. Word (DOCX) файл эсэхийг шалгана уу.",
+  conversation_not_found: "Яриа олдсонгүй.",
+  empty_message: "Асуултаа бичнэ үү.",
   faq_empty: "Файлаас «Асуулт: … / Хариулт: …» хэлбэрийн асуулт олдсонгүй.",
 };
 

@@ -6,13 +6,15 @@ Run in development (from the backend folder):
 Interactive API docs: http://localhost:8000/docs
 """
 
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, courses, faq, health, materials, search
+from app.ai import embeddings
+from app.api import auth, chat, courses, faq, health, materials, search
 from app.core.config import get_settings
 from app.ingest.pipeline import fail_interrupted_jobs
 
@@ -23,6 +25,8 @@ settings = get_settings()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Background jobs don't survive a restart; mark unfinished ones as failed.
     fail_interrupted_jobs()
+    # Load the embedding model now (a few seconds) instead of during the first question.
+    threading.Thread(target=embeddings.get_model, daemon=True).start()
     yield
 
 
@@ -44,3 +48,4 @@ app.include_router(courses.router, prefix="/api")
 app.include_router(materials.router, prefix="/api")
 app.include_router(faq.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
