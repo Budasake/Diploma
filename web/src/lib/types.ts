@@ -28,6 +28,28 @@ export type Student = {
   joined_at: string;
 };
 
+export type MaterialStatus = "processing" | "ready" | "no_text" | "failed";
+
+/** Matches the backend's MaterialOut schema. */
+export type Material = {
+  id: number;
+  course_id: number;
+  filename: string;
+  file_type: "pdf" | "docx";
+  size_bytes: number;
+  status: MaterialStatus;
+  error: string | null;
+  page_count: number | null;
+  chunk_count: number;
+  created_at: string;
+  processed_at: string | null;
+};
+
+/** URL that opens/downloads the original file (PDFs open in the browser). */
+export function materialFileUrl(m: Pick<Material, "id" | "course_id">): string {
+  return `/api/courses/${m.course_id}/materials/${m.id}/file`;
+}
+
 export const roleHome: Record<Role, string> = {
   student: "/student",
   teacher: "/teacher",

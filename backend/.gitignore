@@ -9,3 +9,6 @@ __pycache__/
 
 # Secrets — never commit
 .env
+
+# Uploaded course files (local storage)
+data/

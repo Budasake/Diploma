@@ -9,10 +9,21 @@ const messages: Record<string, string> = {
   already_enrolled: "Та энэ хичээлд аль хэдийн нэгдсэн байна.",
   course_not_found: "Хичээл олдсонгүй.",
   student_not_in_course: "Энэ оюутан хичээлд бүртгэлгүй байна.",
+  material_not_found: "Материал олдсонгүй.",
+  unsupported_file_type: "Зөвхөн PDF болон DOCX файл оруулна уу.",
+  file_too_large: "Файл хэт том байна (дээд хэмжээ 50 MB).",
+  empty_file: "Файл хоосон байна.",
+  duplicate_material: "Энэ файл энэ хичээлд аль хэдийн орсон байна.",
+  material_processing: "Файл боловсруулагдаж байна. Түр хүлээнэ үү.",
 };
 
 export const NETWORK_ERROR = "Сервертэй холбогдож чадсангүй. Түр хүлээгээд дахин оролдоно уу.";
 const FALLBACK = "Алдаа гарлаа. Дахин оролдоно уу.";
+
+/** Mongolian message for a backend error code (e.g. from an XHR response). */
+export function messageForCode(code: unknown): string {
+  return typeof code === "string" ? (messages[code] ?? FALLBACK) : FALLBACK;
+}
 
 export async function errorMessageFrom(res: Response): Promise<string> {
   try {

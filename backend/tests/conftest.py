@@ -6,10 +6,14 @@ data. Tables are created once per test run and emptied before every test.
 """
 
 import os
+import shutil
+import tempfile
 
 # Must be set before the app is imported (the app reads settings on import).
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://localhost:5432/diploma_test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-that-is-long-enough-1234567890")
+# Uploaded files go to a throw-away folder, not backend/data/uploads.
+os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="diploma-test-uploads-")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -20,6 +24,7 @@ from app.core.db import Base, SessionLocal, engine  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import User, UserRole  # noqa: E402
+from app.models.material import EMBEDDING_DIM  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
 
@@ -32,6 +37,7 @@ def _create_tables():
     Base.metadata.create_all(engine)
     yield
     Base.metadata.drop_all(engine)
+    shutil.rmtree(os.environ["UPLOAD_DIR"], ignore_errors=True)
 
 
 @pytest.fixture(autouse=True)
@@ -69,3 +75,47 @@ def make_user():
             return user
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _fake_embeddings(request, monkeypatch):
+    """Tests don't need the real 220 MB model: use simple fake vectors instead.
+    Mark a test with @pytest.mark.real_embeddings to use the real model."""
+    if "real_embeddings" in request.keywords:
+        return
+
+    def fake(texts: list[str]) -> list[list[float]]:
+        return [[float(len(t) % 7 + 1)] + [0.0] * (EMBEDDING_DIM - 1) for t in texts]
+
+    monkeypatch.setattr("app.ingest.pipeline.embed_texts", fake)
+
+
+def login_as(email: str) -> TestClient:
+    """A separate client (own cookies) logged in as this user."""
+    c = TestClient(app)
+    assert c.post("/api/auth/login", json={"email": email, "password": PASSWORD}).status_code == 200
+    return c
+
+
+@pytest.fixture
+def teacher(make_user):
+    make_user(email="teacher@example.com", role=UserRole.teacher)
+    return login_as("teacher@example.com")
+
+
+@pytest.fixture
+def other_teacher(make_user):
+    make_user(email="other@example.com", role=UserRole.teacher)
+    return login_as("other@example.com")
+
+
+@pytest.fixture
+def student(make_user):
+    make_user(email="student@example.com", role=UserRole.student)
+    return login_as("student@example.com")
+
+
+@pytest.fixture
+def admin(make_user):
+    make_user(email="admin@example.com", role=UserRole.admin)
+    return login_as("admin@example.com")

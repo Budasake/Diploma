@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  experimental: {
+    // Requests pass through src/proxy.ts, which keeps only the first 10 MB of a
+    // body by default — that would cut off material uploads. FastAPI enforces the
+    // real limit (50 MB); this just has to be a bit higher.
+    proxyClientMaxBodySize: "60mb",
+  },
   // The browser calls /api/* on the Next.js site, and Next.js forwards it to
   // FastAPI. Same origin for the browser = no CORS problems, and login cookies
   // stay first-party.

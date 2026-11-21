@@ -45,28 +45,38 @@ cd backend && uv run python -m app.scripts.create_user --role teacher --email x@
 ```
 backend/app/
   main.py               app, CORS, routers under /api
-  core/config.py        settings from .env (DATABASE_URL, SECRET_KEY ≥32 chars, GEMINI_*, LLM_PROVIDER)
+  core/config.py        settings from .env (DATABASE_URL, SECRET_KEY ≥32 chars, GEMINI_*, LLM_PROVIDER, UPLOAD_DIR, MAX_UPLOAD_MB)
   core/db.py            engine, get_db(), Base
   core/security.py      hash_password/verify_password (Argon2), create/decode_access_token (JWT)
-  models/               user.py (User, UserRole), course.py (Course, Enrollment) — import new models in models/__init__.py
-  schemas/              Pydantic request/response models (auth.py, course.py)
+  models/               user.py (User, UserRole), course.py (Course, Enrollment), material.py (Material, MaterialStatus,
+                        Chunk with vector(384) + HNSW index) — import new models in models/__init__.py
+  schemas/              Pydantic request/response models (auth.py, course.py, material.py)
   api/deps.py           DbSession, CurrentUser, require_role(...)
   api/health.py         GET /api/health
   api/auth.py           POST register/login/logout, GET me  (errors are short codes, e.g. "email_taken")
-  api/courses.py        courses CRUD, join by code, students list/remove (no access → 404, not 403)
+  api/courses.py        courses CRUD, join by code, students list/remove (no access → 404, not 403);
+                        can_manage / get_visible_course / get_managed_course are reused by other routers
+  api/materials.py      /courses/{id}/materials: upload (202 + BackgroundTasks), list, /file, delete, reprocess
+  ingest/               parse.py (pypdf/python-docx → pages) → chunking.py (~600 chars, 100 overlap, per page)
+                        → pipeline.py process_material() (embed + store, sets status); files in backend/data/uploads
+  ai/embeddings.py      embed_texts() — local fastembed multilingual MiniLM (384-dim), model cached in backend/data/models
   scripts/create_user.py
-backend/alembic/versions/   001 pgvector, 002 users, 003 courses+enrollments
-backend/tests/              conftest.py (diploma_test DB, make_user fixture), test_health/auth/courses.py
+backend/alembic/versions/   001 pgvector, 002 users, 003 courses+enrollments, 004 materials+chunks
+backend/tests/              conftest.py (diploma_test DB, temp UPLOAD_DIR, fake embeddings unless @pytest.mark.real_embeddings,
+                            fixtures make_user/teacher/other_teacher/student/admin, login_as), sample_files.py (make_pdf/make_docx),
+                            test_health/auth/courses/materials/ingest.py
 web/src/
   app/page.tsx              landing page (components/landing/*, animated ChatPreview)
   app/(auth)/login|register login/register pages (components/auth/*)
   app/student|teacher|admin dashboards; student|teacher/courses/[id] course pages
   components/dashboard/     DashboardShell (top bar + logout), ComingSoonCards
   components/courses/       CourseCard, CreateCourseForm, JoinCodeCard, JoinCourseForm, StudentsTable, DeleteCourseButton
+  components/materials/     MaterialsManager (teacher: drag-drop, XHR upload progress, polls while processing),
+                            StudentMaterialList, MaterialStatusBadge
   lib/api-server.ts         apiGet() for Server Components (forwards cookie to FastAPI)
   lib/auth.ts               getCurrentUser(), requireRole(role) — call inside <Suspense>
   lib/api-errors.ts         backend error code → Mongolian message; safeNextPath()
-  lib/types.ts              User, Course, Student, roleHome, roleLabel
+  lib/types.ts              User, Course, Student, Material, materialFileUrl(), roleHome, roleLabel
   proxy.ts                  optimistic redirect to /login for /student|/teacher|/admin without cookie
 ```
 
@@ -78,4 +88,6 @@ web/src/
 - **Protected page:** `page.tsx` renders `<Suspense fallback={<DashboardSkeleton/>}>` around an async component that calls
   `requireRole(...)` and `apiGet(...)`, then wraps content in `DashboardShell`.
 - **Mutations from the UI:** client component `fetch("/api/...")` then `router.refresh()` (or `router.push`).
+- **Uploads through Next.js:** `next.config.ts` sets `experimental.proxyClientMaxBodySize: "60mb"` — without it the
+  proxy cuts request bodies at 10 MB. FastAPI enforces the real 50 MB limit.
 - Tests: one behavior per test; use fixtures `client`, `make_user`; separate `TestClient` per logged-in user.

@@ -2,14 +2,15 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import DeleteCourseButton from "@/components/courses/DeleteCourseButton";
 import JoinCodeCard from "@/components/courses/JoinCodeCard";
 import StudentsTable from "@/components/courses/StudentsTable";
+import MaterialsManager from "@/components/materials/MaterialsManager";
 import DashboardShell, { DashboardSkeleton } from "@/components/dashboard/DashboardShell";
 import { apiGet } from "@/lib/api-server";
 import { requireRole } from "@/lib/auth";
-import type { Course, Student } from "@/lib/types";
+import type { Course, Material, Student } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Хичээл · AI Сургалтын Туслах" };
 
@@ -26,13 +27,15 @@ async function TeacherCourse({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
 
-  const [courseRes, studentsRes] = await Promise.all([
+  const [courseRes, studentsRes, materialsRes] = await Promise.all([
     apiGet<Course>(`/api/courses/${id}`),
     apiGet<Student[]>(`/api/courses/${id}/students`),
+    apiGet<Material[]>(`/api/courses/${id}/materials`),
   ]);
   if (!courseRes.ok) notFound();
   const course = courseRes.data;
   const students = studentsRes.ok ? studentsRes.data : [];
+  const materials = materialsRes.ok ? materialsRes.data : [];
 
   return (
     <DashboardShell user={user}>
@@ -49,25 +52,24 @@ async function TeacherCourse({ params }: { params: Promise<{ id: string }> }) {
         <DeleteCourseButton courseId={course.id} title={course.title} />
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[22rem_1fr]">
+      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_22rem]">
+        <section>
+          <h2 className="mb-1 text-lg font-semibold">Материал</h2>
+          <p className="mb-4 text-sm text-muted">
+            AI туслах зөвхөн энд оруулсан файлуудаас хариулт хайна.
+          </p>
+          <MaterialsManager courseId={course.id} initialMaterials={materials} />
+        </section>
+
         <div className="space-y-6">
           {course.join_code && <JoinCodeCard courseId={course.id} joinCode={course.join_code} />}
-          <div className="glass rounded-2xl p-5">
-            <div className="flex items-center gap-2 font-medium">
-              <FileText className="h-4 w-4 text-primary-soft-foreground" /> Материал
-            </div>
-            <p className="mt-2 text-sm text-muted">
-              Лекц, лабораторийн PDF, DOCX файл оруулах хэсэг дараагийн шатанд нэмэгдэнэ.
-            </p>
-          </div>
+          <section>
+            <h2 className="mb-3 text-lg font-semibold">
+              Оюутнууд <span className="text-muted">({students.length})</span>
+            </h2>
+            <StudentsTable courseId={course.id} students={students} />
+          </section>
         </div>
-
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">
-            Оюутнууд <span className="text-muted">({students.length})</span>
-          </h2>
-          <StudentsTable courseId={course.id} students={students} />
-        </section>
       </div>
     </DashboardShell>
   );

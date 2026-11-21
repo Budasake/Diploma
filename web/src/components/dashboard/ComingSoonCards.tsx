@@ -5,7 +5,7 @@ export type ComingSoonItem = { icon: LucideIcon; title: string; text: string };
 /** Placeholder cards for features that later milestones will build. */
 export default function ComingSoonCards({ items }: { items: ComingSoonItem[] }) {
   return (
-    <div className="mt-8 grid gap-4 md:grid-cols-3">
+    <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {items.map(({ icon: Icon, title, text }) => (
         <div key={title} className="glass rounded-2xl p-5">
           <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/30 bg-primary-soft text-primary-soft-foreground">

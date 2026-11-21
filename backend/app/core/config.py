@@ -7,9 +7,12 @@ backend folder. `.env` holds secrets (API keys) and is never committed to git;
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -34,6 +37,13 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    # Course materials. Files are stored on disk (git-ignored `data/` folder);
+    # the embedding model (~220 MB) is downloaded once into `data/models/`.
+    upload_dir: Path = _BACKEND_DIR / "data" / "uploads"
+    model_cache_dir: Path = _BACKEND_DIR / "data" / "models"
+    max_upload_mb: int = 50
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
     # LLM — used later by the chat step. The provider is pluggable so it can be
     # switched (gemini / ollama / claude …) without code changes.

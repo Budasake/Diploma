@@ -2,12 +2,13 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, ListChecks, MessageSquare } from "lucide-react";
+import { ArrowLeft, ListChecks, MessageSquare } from "lucide-react";
 import ComingSoonCards from "@/components/dashboard/ComingSoonCards";
 import DashboardShell, { DashboardSkeleton } from "@/components/dashboard/DashboardShell";
+import StudentMaterialList from "@/components/materials/StudentMaterialList";
 import { apiGet } from "@/lib/api-server";
 import { requireRole } from "@/lib/auth";
-import type { Course } from "@/lib/types";
+import type { Course, Material } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Хичээл · AI Сургалтын Туслах" };
 
@@ -24,9 +25,13 @@ async function StudentCourse({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^\d+$/.test(id)) notFound();
 
-  const result = await apiGet<Course>(`/api/courses/${id}`);
+  const [result, materialsRes] = await Promise.all([
+    apiGet<Course>(`/api/courses/${id}`),
+    apiGet<Material[]>(`/api/courses/${id}/materials`),
+  ]);
   if (!result.ok) notFound(); // not enrolled or doesn't exist
   const course = result.data;
+  const materials = materialsRes.ok ? materialsRes.data : [];
 
   return (
     <DashboardShell user={user}>
@@ -39,10 +44,16 @@ async function StudentCourse({ params }: { params: Promise<{ id: string }> }) {
       <p className="mt-2 text-muted">Багш: {course.teacher_name}</p>
       {course.description && <p className="mt-3 max-w-2xl text-muted">{course.description}</p>}
 
+      <section className="mt-8">
+        <h2 className="mb-3 text-lg font-semibold">
+          Материал <span className="text-muted">({materials.length})</span>
+        </h2>
+        <StudentMaterialList materials={materials} />
+      </section>
+
       <ComingSoonCards
         items={[
           { icon: MessageSquare, title: "AI туслах", text: "Энэ хичээлийн материалаас асуулт асуух." },
-          { icon: FileText, title: "Материал", text: "Лекц, лабораторийн файлууд." },
           { icon: ListChecks, title: "Сорил", text: "Багшийн баталсан тестээр давтах." },
         ]}
       />

@@ -18,7 +18,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser, DbSession, require_role
-from app.models import Course, Enrollment, User, UserRole
+from app.ingest.pipeline import stored_path
+from app.models import Course, Enrollment, Material, User, UserRole
 from app.schemas.course import CourseCreate, CourseOut, CourseUpdate, JoinRequest, StudentOut
 
 router = APIRouter(prefix="/courses", tags=["courses"])
@@ -47,7 +48,7 @@ def _student_counts(db: Session, course_ids: list[int]) -> dict[int, int]:
     return dict(rows.all())
 
 
-def _can_manage(user: User, course: Course) -> bool:
+def can_manage(user: User, course: Course) -> bool:
     return user.role == UserRole.admin or course.teacher_id == user.id
 
 
@@ -60,16 +61,16 @@ def _to_out(course: Course, user: User, student_count: int) -> CourseOut:
         teacher_name=course.teacher.full_name,
         student_count=student_count,
         created_at=course.created_at,
-        join_code=course.join_code if _can_manage(user, course) else None,
+        join_code=course.join_code if can_manage(user, course) else None,
     )
 
 
-def _get_visible_course(db: Session, course_id: int, user: User) -> Course:
+def get_visible_course(db: Session, course_id: int, user: User) -> Course:
     """The course if this user may see it, otherwise 404."""
     course = db.get(Course, course_id)
     if course is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="course_not_found")
-    if _can_manage(user, course):
+    if can_manage(user, course):
         return course
     if user.role == UserRole.student:
         enrolled = db.scalar(
@@ -82,10 +83,10 @@ def _get_visible_course(db: Session, course_id: int, user: User) -> Course:
     raise HTTPException(status.HTTP_404_NOT_FOUND, detail="course_not_found")
 
 
-def _get_managed_course(db: Session, course_id: int, user: User) -> Course:
+def get_managed_course(db: Session, course_id: int, user: User) -> Course:
     """The course if this user is its teacher (or an admin), otherwise 404."""
     course = db.get(Course, course_id)
-    if course is None or not _can_manage(user, course):
+    if course is None or not can_manage(user, course):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="course_not_found")
     return course
 
@@ -143,7 +144,7 @@ def join_course(data: JoinRequest, user: CurrentUser, db: DbSession) -> CourseOu
 
 @router.get("/{course_id}", response_model=CourseOut)
 def get_course(course_id: int, user: CurrentUser, db: DbSession) -> CourseOut:
-    course = _get_visible_course(db, course_id, user)
+    course = get_visible_course(db, course_id, user)
     return _to_out(course, user, _student_counts(db, [course.id]).get(course.id, 0))
 
 
@@ -151,7 +152,7 @@ def get_course(course_id: int, user: CurrentUser, db: DbSession) -> CourseOut:
 def update_course(
     course_id: int, data: CourseUpdate, user: CurrentUser, db: DbSession
 ) -> CourseOut:
-    course = _get_managed_course(db, course_id, user)
+    course = get_managed_course(db, course_id, user)
     for field, value in data.model_dump(exclude_unset=True).items():
         if field == "title" and value is None:
             continue  # title can't be removed
@@ -163,16 +164,23 @@ def update_course(
 
 @router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_course(course_id: int, user: CurrentUser, db: DbSession) -> Response:
-    course = _get_managed_course(db, course_id, user)
+    course = get_managed_course(db, course_id, user)
+    # The database removes the course's materials and chunks (ON DELETE CASCADE);
+    # the uploaded files on disk we remove ourselves.
+    files = [
+        stored_path(m) for m in db.scalars(select(Material).where(Material.course_id == course.id))
+    ]
     db.delete(course)
     db.commit()
+    for path in files:
+        path.unlink(missing_ok=True)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{course_id}/join-code", response_model=CourseOut)
 def regenerate_join_code(course_id: int, user: CurrentUser, db: DbSession) -> CourseOut:
     """New code (e.g. if the old one was shared too widely). Old code stops working."""
-    course = _get_managed_course(db, course_id, user)
+    course = get_managed_course(db, course_id, user)
     course.join_code = _new_join_code(db)
     db.commit()
     db.refresh(course)
@@ -184,7 +192,7 @@ def regenerate_join_code(course_id: int, user: CurrentUser, db: DbSession) -> Co
 
 @router.get("/{course_id}/students", response_model=list[StudentOut])
 def list_students(course_id: int, user: CurrentUser, db: DbSession) -> list[StudentOut]:
-    course = _get_managed_course(db, course_id, user)
+    course = get_managed_course(db, course_id, user)
     rows = db.execute(
         select(User, Enrollment.created_at)
         .join(Enrollment, Enrollment.student_id == User.id)
@@ -199,7 +207,7 @@ def list_students(course_id: int, user: CurrentUser, db: DbSession) -> list[Stud
 
 @router.delete("/{course_id}/students/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_student(course_id: int, student_id: int, user: CurrentUser, db: DbSession) -> Response:
-    course = _get_managed_course(db, course_id, user)
+    course = get_managed_course(db, course_id, user)
     enrollment = db.scalar(
         select(Enrollment).where(
             Enrollment.course_id == course.id, Enrollment.student_id == student_id
